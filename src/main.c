@@ -4,9 +4,16 @@
 #include<sys/wait.h>
 #include<string.h>
 #include<fcntl.h>
+#include<signal.h>
 #include"parser.h"
 
+void sigchild_handler () {
+    while(waitpid(-1, NULL, WNOHANG) > 0);
+}
+
 int main () {
+    signal(SIGCHLD, sigchild_handler);
+
     char input[1024];
     char* args[100];
     while(1){
@@ -18,6 +25,17 @@ int main () {
 
         // parsing
         parse_input(input, args);
+
+        int background = -1;
+        int last=0;
+        while(args[last]!=NULL){
+            last++;
+        }
+        last--;
+        if(strcmp(args[last], "&") == 0){
+            background=last;
+            args[last]=NULL;
+        }
 
         int pipe_index=-1;
         for(int index=0;args[index]!=NULL;index++){
@@ -76,8 +94,10 @@ int main () {
             close(pipefd[1]);
 
 
-            waitpid(pid1, NULL, 0);
-            waitpid(pid2, NULL, 0);
+            if(background==-1){
+                waitpid(pid1, NULL, 0);
+                waitpid(pid2, NULL, 0);
+            }
             continue;
         }
 
@@ -121,7 +141,9 @@ int main () {
 
         else {
             // parent process
-            waitpid(pid, NULL, 0); // takes process id, exit status of child process (NULL means idc), flags which tells how the waitpid will behave until child is not terminated
+            if(background==-1){
+                waitpid(pid, NULL, 0); // takes process id, exit status of child process (NULL means idc), flags which tells how the waitpid will behave until child is not terminated
+            }
         }
     }
     return 0;
