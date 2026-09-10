@@ -19,6 +19,68 @@ int main () {
         // parsing
         parse_input(input, args);
 
+        int pipe_index=-1;
+        for(int index=0;args[index]!=NULL;index++){
+            if(strcmp(args[index], "|") == 0){
+                pipe_index=index;
+                break;
+            }
+        }
+
+        if(pipe_index != -1) {
+            args[pipe_index]=NULL;
+            char** cmd1 = args;
+            char** cmd2 = &args[pipe_index+1];
+
+            int pipefd[2];
+            if(pipe(pipefd)<0){
+                perror("pipe failed");
+                continue;
+            }
+
+            pid_t pid1 = fork();
+            if(pid1<0){
+                perror("fork failed during pipe exec 1");
+                continue;
+            }
+
+            if(pid1==0){
+                dup2(pipefd[1], STDOUT_FILENO);
+                close(pipefd[0]);
+                close(pipefd[1]);
+
+                execvp(cmd1[0], cmd1);
+
+                perror("execvp() during pipe exec 1 failed");
+                exit(1);
+            }
+
+            pid_t pid2 = fork();
+            if(pid2<0){
+                perror("fork() failed during pipe exec 2");
+                continue;
+            }
+
+            if(pid2==0){
+                dup2(pipefd[0], STDIN_FILENO);
+                close(pipefd[0]);
+                close(pipefd[1]);
+
+                execvp(cmd2[0], cmd2);
+
+                perror("execvp() failed during pipe exec 2");
+                exit(1);
+            }
+
+            close(pipefd[0]);
+            close(pipefd[1]);
+
+
+            waitpid(pid1, NULL, 0);
+            waitpid(pid2, NULL, 0);
+            continue;
+        }
+
         int redirect = -1;
         for(int index=0;args[index]!=NULL;index++){
             if(strcmp(args[index], ">") == 0){
